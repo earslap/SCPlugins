@@ -64,6 +64,8 @@ InterfaceTable *ft;
 
 struct FrameCompare : PV_Unit
 {
+	float magSum;
+	int numFrames;
 	float outVal;
 };
 
@@ -103,32 +105,49 @@ SCComplexBuf* ToComplexApx(SndBuf *buf)
 }
 
 //FrameCompare
+//Gives a similarity rating for two (short duration) sound sources. 
+//Smaller the output, more similar the source and target.
+//Compares magnitudes only.
+//Distance metrics formula taken from an article by Ricardo A. Garcia:
+//(Growing Sound Synthesizers Using Evolutionary Methods)
+//http://galileo.cincom.unical.it/Music/workshop/articoli/garcia.pdf
 
 void FrameCompare_Ctor(FrameCompare* unit)
 {
 	
 	SETCALC(FrameCompare_next);
-	ZOUT0(0) = ZIN0(0);
+	unit->magSum = 0.f, unit->numFrames = 0;
+	ZOUT0(0) = unit->outVal = ZIN0(0);
 }
 
 void FrameCompare_next(FrameCompare *unit, int inNumSamples)
 {
 	PV_GET_BUF2_FCOMPARE
 	
-	float sum = 0;
+	float minTargetMag = 900000.f, maxTargetMag = 0.f;
+	float magdiff, magweight, lmtemp, minmaxtemp;
 	
-	SCPolarBuf *p1 = ToPolarApx(buf1);
-	SCPolarBuf *p2 = ToPolarApx(buf2);
+	SCPolarBuf *p1 = ToPolarApx(buf1); //rendered
+	SCPolarBuf *p2 = ToPolarApx(buf2); //target
 	
 	for(int i = 0; i < numbins; ++i)
 	{
+		minmaxtemp = (p2->bin[i].mag < 0.00001) ? -11.51292546497 : log(fabs(p2->bin[i].mag));
 		
-		sum = sum + fabs(p1->bin[i].mag - p2->bin[i].mag);
-		//Print("1: %f, 2: %f\n", p1->bin[i].mag, p2->bin[i].mag);
+		minTargetMag = (minmaxtemp <= minTargetMag) ? minmaxtemp : minTargetMag;
+		maxTargetMag = (minmaxtemp >= maxTargetMag) ? minmaxtemp : maxTargetMag;
 	}
 	
-	ZOUT0(0) = unit->outVal = sum;
-	//Print("hmm: %f\n", sum);
+	for(int i = 0; i < numbins; ++i)
+	{
+		magdiff = fabs(p1->bin[i].mag) - fabs(p2->bin[i].mag);
+		lmtemp = p2->bin[i].mag < 0.00001 ? -11.51292546497 : log(fabs(p2->bin[i].mag));
+		magweight = (lmtemp - minTargetMag) / fabs(minTargetMag - maxTargetMag);
+		unit->magSum = unit->magSum + (magdiff * magdiff * magweight);
+	}
+	
+	unit->numFrames = unit->numFrames + 1;
+	ZOUT0(0) = unit->outVal = unit->magSum/unit->numFrames;
 }
 
 void FrameCompare_Dtor(FrameCompare* unit)
@@ -142,6 +161,5 @@ void load(InterfaceTable *inTable)
 	ft = inTable;
 	
 	init_SCComplex(inTable);
-	
 	DefineDtorUnit(FrameCompare);	
 }
