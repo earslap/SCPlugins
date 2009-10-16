@@ -125,14 +125,20 @@ void FrameCompare_next(FrameCompare *unit, int inNumSamples)
 	PV_GET_BUF2_FCOMPARE
 	
 	float minTargetMag = 900000.f, maxTargetMag = 0.f;
-	float magdiff, magweight, lmtemp, minmaxtemp;
+	float magdiff, magweight, lmtemp, minmaxtemp, p1mag, p2mag, scaleFactor;
+	float wOffset = ZIN0(2);
 	
 	SCPolarBuf *p1 = ToPolarApx(buf1); //rendered
 	SCPolarBuf *p2 = ToPolarApx(buf2); //target
 	
+	scaleFactor =  (numbins + 1) * 0.5; //hanning window only
+	//Print("%f\n", p2->bin[100].mag / scaleFactor);
+	
 	for(int i = 0; i < numbins; ++i)
 	{
-		minmaxtemp = (p2->bin[i].mag < 0.00001) ? -11.51292546497 : log(fabs(p2->bin[i].mag));
+		p2mag = p2->bin[i].mag / scaleFactor;
+		
+		minmaxtemp = (p2mag < 2e-42) ? log(2e-42) : log(fabs(p2mag));
 		
 		minTargetMag = (minmaxtemp <= minTargetMag) ? minmaxtemp : minTargetMag;
 		maxTargetMag = (minmaxtemp >= maxTargetMag) ? minmaxtemp : maxTargetMag;
@@ -140,9 +146,12 @@ void FrameCompare_next(FrameCompare *unit, int inNumSamples)
 	
 	for(int i = 0; i < numbins; ++i)
 	{
-		magdiff = fabs(p1->bin[i].mag) - fabs(p2->bin[i].mag);
-		lmtemp = p2->bin[i].mag < 0.00001 ? -11.51292546497 : log(fabs(p2->bin[i].mag));
-		magweight = (lmtemp - minTargetMag) / fabs(minTargetMag - maxTargetMag);
+		p1mag = p1->bin[i].mag / scaleFactor;
+		p2mag = p2->bin[i].mag / scaleFactor;
+		
+		magdiff = fabs(p1mag) - fabs(p2mag);
+		lmtemp = p2mag < 2e-42 ? log(2e-42) : log(fabs(p2mag));
+		magweight = (1 - wOffset) + (wOffset * ((lmtemp - minTargetMag) / fabs(minTargetMag - maxTargetMag)));
 		unit->magSum = unit->magSum + (magdiff * magdiff * magweight);
 	}
 	
