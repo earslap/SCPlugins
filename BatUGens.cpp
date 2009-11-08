@@ -541,16 +541,22 @@ void NeedleRect_next(NeedleRect *unit, int inNumSamples)
 	float rectW = ZIN0(5);
 	float rectH = ZIN0(6);
 	
+	rectX = (rectX >= 0) ? rectX : 0.f;
+	rectY = (rectY >= 0) ? rectY : 0.f;
+	//rectY = (rectY < unit->imgHeight) ? rectY : (unit->imgHeight - 1);
+	
 	LOOP(inNumSamples,
 		 
 		 float tempNextX = fmod((unit->oldX + rate), rectW);
+		 //tempNextX = ((rectX + tempNextX) < unit->imgWidth) ? tempNextX : 0.f;
+
 		 if(tempNextX <= unit->oldX)
 		 {
 			unit->oldY = fmod((unit->oldY + 1), rectH);
 		 }
 		 unit->oldX = tempNextX;
 		 
-		 ZXP(out) = ((unit->oldY + rectY) * (float)unit->imgWidth) + rectX + unit->oldX;
+		 ZXP(out) = ((unit->oldY + rectY) * (float)unit->imgWidth) + rectX + tempNextX;
 	);
 	
 }
