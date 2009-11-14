@@ -81,9 +81,7 @@ struct MarkovSynth : public Unit
 struct NeedleRect : public Unit
 {
 	int imgWidth, imgHeight;
-	float oldX;
-	int oldY;
-	int trigSet;
+	float oldX, oldY;
 };
 
 
@@ -294,6 +292,8 @@ void Coyote_next(Coyote *unit, int inNumSamples)
 	float prev = unit->prevAmp;
 	
 	float trackerOut;
+	float slowOut;
+	float fastOut;
 	
 	if(unit->avgTrig)
 	{
@@ -528,57 +528,35 @@ void NeedleRect_Ctor(NeedleRect *unit)
 	unit->imgHeight = ZIN0(2);
 	unit->oldX = 0;
 	unit->oldY = 0;
-	unit->trigSet = 0;
 	
 	ZOUT0(0) = ((float)unit->imgWidth * ZIN0(4)) + ZIN0(3);
-	ZOUT0(1) = 0.f;
 }
 
 void NeedleRect_next(NeedleRect *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
-	float *trigOut = ZOUT(1);
 	double rate = ZIN0(0) * SAMPLEDUR;
-	int rectX = (int)ZIN0(3);
-	int rectY = (int)ZIN0(4);
-	int rectW = (int)ZIN0(5);
-	int rectH = (int)ZIN0(6);
-	float lookAhead = ZIN0(7) * SAMPLERATE;
-	float cTrig = 0.f;
+	float rectX = ZIN0(3);
+	float rectY = ZIN0(4);
+	float rectW = ZIN0(5);
+	float rectH = ZIN0(6);
 	
 	rectX = (rectX >= 0) ? rectX : 0.f;
 	rectY = (rectY >= 0) ? rectY : 0.f;
-
+	//rectY = (rectY < unit->imgHeight) ? rectY : (unit->imgHeight - 1);
+	
 	LOOP(inNumSamples,
 		 
-		 float tempNextX = fmod((unit->oldX + rate), (float)rectW);
-		 
-		 if( ((rectW < unit->imgWidth) || (unit->oldY == (rectH - 1))) && ((unit->oldX + (lookAhead * rate)) > (float)rectW) )
-		 {
-			if(unit->trigSet == 0)
-			{
-				cTrig = 1.0;
-				unit->trigSet = 1;
-			}
-			else
-			{
-				cTrig = 0.f;
-			}
-		 }
-		 else 
-		 {
-			 cTrig = 0.f;
-			 unit->trigSet = 0;
-		 }
-		 
+		 float tempNextX = fmod((unit->oldX + rate), rectW);
+		 //tempNextX = ((rectX + tempNextX) < unit->imgWidth) ? tempNextX : 0.f;
+
 		 if(tempNextX <= unit->oldX)
 		 {
-			unit->oldY = (unit->oldY + 1) % rectH;
+			unit->oldY = fmod((unit->oldY + 1), rectH);
 		 }
 		 unit->oldX = tempNextX;
 		 
 		 ZXP(out) = ((unit->oldY + rectY) * (float)unit->imgWidth) + rectX + tempNextX;
-		 ZXP(trigOut) = cTrig;
 	);
 	
 }
